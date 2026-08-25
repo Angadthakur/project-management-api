@@ -3,12 +3,14 @@ const User = require("../models/User");
 const { hashPassword, comparePassword} = require("../utils/password");
 
 const { generateToken } = require("../utils/jwt");
+const AppError = require("../utils/AppError");
+
 
 const registerUser = async ({name ,email, password}) => {
     const existingUser = await User.findOne({email});
 
     if(existingUser){
-        throw new Error("User already exists");
+        throw new AppError("User already exists",409);
     }
 
     const hashedPassword = await hashPassword(password);
@@ -36,13 +38,13 @@ const loginUser = async ({email , password}) => {
     const user = await User.findOne({email});
 
     if(!user){
-        throw new Error("Invalid email or password");
+        throw new AppError("Invalid email or password",401);
     }
 
     const passwordMatch = await comparePassword(password , user.password);
 
     if(!passwordMatch){
-        throw new Error("Invalid email or password");
+        throw new AppError("Invalid email or password",401);
     }
 
     const token = generateToken(user);
