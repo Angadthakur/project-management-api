@@ -55,6 +55,11 @@ const taskSchema = new mongoose.Schema({
     }
 )
 
+//index
+taskSchema.index({
+    project : 1,
+})
+
 const Task = mongoose.model("Task", taskSchema);
 
 module.exports = Task;
