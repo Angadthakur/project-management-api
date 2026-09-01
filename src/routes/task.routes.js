@@ -5,6 +5,8 @@ const taskController = require("../controllers/task.controller");
 const protect = require("../middlewares/auth.middleware");
 const { updateTaskSchema, assignTaskSchema, createTaskSchema } = require("../validators/task.validator");
 
+const validate = require("../middlewares/validate.middleware");
+
 const router = express.Router();
 
 router.use(protect);
