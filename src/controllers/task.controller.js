@@ -22,15 +22,17 @@ const create = asyncHandler(async (req, res) => {
     });
 });
 
-const result = await getProjectTasks(
-    req.params.projectId,
-    req.user.userId,
-    req.query
-);
+const getAllForProject = asyncHandler(async (req, res) => {
+    const result = await getProjectTasks(
+        req.params.projectId,
+        req.user.userId,
+        req.query
+    );
 
-res.status(200).json({
-    success: true,
-    ...result,
+    res.status(200).json({
+        success: true,
+        ...result,
+    });
 });
 
 const getOne = asyncHandler(async (req, res) => {
