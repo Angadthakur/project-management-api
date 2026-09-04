@@ -3,6 +3,9 @@ const Project = require("../models/Project");
 const User = require("../models/User");
 const AppError = require("../utils/AppError");
 
+const redisClient = require("../config/redis");
+const invalidateProjectTaskCache = require("../utils/cache");
+
 const createTask = async (
     projectId,
     requesterId,
@@ -75,6 +78,8 @@ const createTask = async (
         createdBy: requesterId,
     });
 
+    await invalidateProjectTaskCache(projectId);
+
     return task;
 };
 
@@ -107,7 +112,7 @@ const getProjectTasks = async (
             403
         );
     }
-    
+
     //pagination
     const page = Math.max(
         parseInt(filters.page) || 1,
@@ -119,10 +124,10 @@ const getProjectTasks = async (
         100
     )
 
-    const skip = (page-1) * limit;
+    const skip = (page - 1) * limit;
 
 
-
+    //query
     const query = { project: projectId };
 
     //filtering 
@@ -139,18 +144,18 @@ const getProjectTasks = async (
     }
 
     //searching
-    if(filters.search){
+    if (filters.search) {
         query.$or = [
             {
-                title :{
-                    $regex : filters.search,
-                    $options : "i"
+                title: {
+                    $regex: filters.search,
+                    $options: "i"
                 }
             },
             {
-                description : {
+                description: {
                     $regex: filters.search,
-                $options: "i",
+                    $options: "i",
                 }
             }
         ]
@@ -158,43 +163,74 @@ const getProjectTasks = async (
 
     //sorting 
     let sort = {
-        createdAt:-1,
+        createdAt: -1,
     }
 
     if (filters.sort) {
-    const sortField = filters.sort.startsWith("-")
-        ? filters.sort.substring(1)
-        : filters.sort;
+        const sortField = filters.sort.startsWith("-")
+            ? filters.sort.substring(1)
+            : filters.sort;
 
-    const sortOrder = filters.sort.startsWith("-")
-        ? -1
-        : 1;
+        const sortOrder = filters.sort.startsWith("-")
+            ? -1
+            : 1;
 
-    const allowedSortFields = [
-        "createdAt",
-        "dueDate",
-        "priority",
-        "title",
-    ];
+        const allowedSortFields = [
+            "createdAt",
+            "dueDate",
+            "priority",
+            "title",
+        ];
 
-    if (!allowedSortFields.includes(sortField)) {
-        throw new AppError(
-            `Invalid sort field: ${sortField}`,
-            400
-        );
+        if (!allowedSortFields.includes(sortField)) {
+            throw new AppError(
+                `Invalid sort field: ${sortField}`,
+                400
+            );
+        }
+
+        sort = {
+            [sortField]: sortOrder,
+        };
     }
 
-    sort = {
-        [sortField]: sortOrder,
+    //cache key
+    const cacheParams = {
+        status: filters.status || "",
+        priority: filters.priority || "",
+        assignedTo: filters.assignedTo || "",
+        search: filters.search || "",
+        sort: filters.sort || "",
+        page,
+        limit
     };
-}
+
+    const cacheKey = `project:${projectId}:tasks:${JSON.stringify(cacheParams)}`;
+
+    //redis implementation
+    let cachedTasks = null;
+
+    try {
+        const cachedTasks = await redisClient.get(cachekey);
+    } catch (error) {
+        console.error("Redis GET failed:", error.message)
+    }
+
+    if (cachedTasks) {
+        console.log("CACHE HIT");
+
+        return JSON.parse(cachedTasks);
+    }
+
+    console.log("CACHE MISS");
+
+
 
     const totalTasks = await Task.countDocuments(query)
 
     const totalPages = Math.ceil(
-        totalTasks/ limit
+        totalTasks / limit
     )
-
 
     const tasks = await Task.find(query)
         .populate("createdBy", "name email")
@@ -203,17 +239,31 @@ const getProjectTasks = async (
         .skip(skip)
         .limit(limit)
 
-    return {
+    const result = {
         tasks,
         pagination: {
             page,
             limit,
             totalTasks,
             totalPages,
-            hasNextPage : page < totalPages,
-            hasPreviousPage : page> 1,
+            hasNextPage: page < totalPages,
+            hasPreviousPage: page > 1,
         }
     };
+    //saving the result on redis
+    try {
+        await redisClient.set(
+            cacheKey,
+            JSON.stringify(result),
+            {
+                EX: 60
+            }
+        );
+    } catch (error) {
+        console.error("Redis SET failed:", error.message);
+    }
+
+    return result;
 };
 
 const getTaskById = async (
@@ -308,6 +358,8 @@ const updateTask = async (
 
     await task.save();
 
+    await invalidateProjectTaskCache(task.project);
+
     return task;
 };
 
@@ -355,6 +407,8 @@ const deleteTask = async (
     }
 
     await task.deleteOne();
+
+    await invalidateProjectTaskCache(task.project);
 
     return task;
 };
@@ -408,6 +462,8 @@ const assignTask = async (
 
         await task.save();
 
+        await invalidateProjectTaskCache(task.project);
+
         return task;
     }
 
@@ -440,6 +496,8 @@ const assignTask = async (
     task.assignedTo = targetUserId;
 
     await task.save();
+
+    await invalidateProjectTaskCache(task.project);
 
     return task;
 };
