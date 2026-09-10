@@ -108,7 +108,7 @@ const addMember = async (
         project.owner.toString() === requesterId;
 
     const requesterMembership =
-        project.members.find(
+        (project.members || []).find(
             (member) =>
                 member.user.toString() === requesterId
         );
@@ -139,7 +139,7 @@ const addMember = async (
         );
     }
 
-    const alreadyMember = project.members.some(
+    const alreadyMember = (project.members || []).some(
         (member) =>
             member.user.toString() === user._id.toString()
     );
