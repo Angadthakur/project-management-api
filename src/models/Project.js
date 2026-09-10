@@ -39,10 +39,21 @@ const projectSchema = new mongoose.Schema(
             required: true,
         },
 
-        member : {
-            type : [projectMemberSchema],
-            default:[]
-        },
+        members : [
+            {
+                user: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: "User",
+                    required: true
+                },
+
+                role: {
+                    type: String,
+                    enum: ["manager", "member"],
+                    default: "member"
+                }
+            }
+        ],
 
         status: {
             type: String,
