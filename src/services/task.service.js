@@ -211,7 +211,7 @@ const getProjectTasks = async (
     let cachedTasks = null;
 
     try {
-        const cachedTasks = await redisClient.get(cachekey);
+        cachedTasks = await redisClient.get(cacheKey);
     } catch (error) {
         console.error("Redis GET failed:", error.message)
     }
